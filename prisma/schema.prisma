@@ -1,0 +1,327 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model UserRole {
+  code  String @id @db.VarChar(30)
+  label String @db.VarChar(80)
+  users User[]
+
+  @@map("user_roles")
+}
+
+model Gender {
+  code     String    @id @db.VarChar(20)
+  label    String    @db.VarChar(80)
+  patients Patient[]
+
+  @@map("genders")
+}
+
+model PrescriptionStatus {
+  code          String         @id @db.VarChar(30)
+  label         String         @db.VarChar(80)
+  prescriptions Prescription[]
+
+  @@map("prescription_statuses")
+}
+
+model MedicineFrequency {
+  code              String             @id @db.VarChar(30)
+  label             String             @db.VarChar(80)
+  prescriptionItems PrescriptionItem[]
+
+  @@map("medicine_frequencies")
+}
+
+model MedicineTiming {
+  code              String             @id @db.VarChar(30)
+  label             String             @db.VarChar(80)
+  prescriptionItems PrescriptionItem[]
+
+  @@map("medicine_timings")
+}
+
+model DispenseStatus {
+  code             String            @id @db.VarChar(30)
+  label            String            @db.VarChar(80)
+  dispensedRecords DispensedRecord[]
+
+  @@map("dispense_statuses")
+}
+
+model AlertType {
+  code         String        @id @db.VarChar(30)
+  label        String        @db.VarChar(80)
+  refillAlerts RefillAlert[]
+
+  @@map("alert_types")
+}
+
+model NotificationType {
+  code          String         @id @db.VarChar(30)
+  label         String         @db.VarChar(80)
+  notifications Notification[]
+
+  @@map("notification_types")
+}
+
+model User {
+  id            String         @id @default(uuid()) @db.Char(36)
+  fullName      String         @map("full_name") @db.VarChar(100)
+  email         String         @unique @db.VarChar(150)
+  passwordHash  String         @map("password_hash") @db.VarChar(255)
+  role          String         @db.VarChar(30)
+  phone         String         @db.VarChar(15)
+  isActive      Boolean        @default(true) @map("is_active")
+  isVerified    Boolean        @default(false) @map("is_verified")
+  profilePhoto  String?        @map("profile_photo") @db.VarChar(255)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  lastLogin     DateTime?      @map("last_login")
+  doctor        Doctor?
+  patient       Patient?
+  pharmacist    Pharmacist?
+  notifications Notification[]
+  auditLogs     AuditLog[]
+  passwordResetOtps PasswordResetOtp[]
+  inventoryLogs PharmacyInventory[] @relation("InventoryUpdatedBy")
+  roleRef       UserRole       @relation(fields: [role], references: [code])
+
+  @@map("users")
+}
+
+model PasswordResetOtp {
+  id        String   @id @default(uuid()) @db.Char(36)
+  userId    String   @map("user_id") @db.Char(36)
+  otpHash   String   @map("otp_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("password_reset_otps")
+}
+
+model Doctor {
+  id              String         @id @default(uuid()) @db.Char(36)
+  userId          String         @unique @map("user_id") @db.Char(36)
+  licenseNumber   String         @unique @map("license_number") @db.VarChar(50)
+  specialization  String         @db.VarChar(100)
+  hospitalName    String         @map("hospital_name") @db.VarChar(150)
+  hospitalAddress String         @map("hospital_address")
+  city            String         @db.VarChar(80)
+  pincode         String         @db.VarChar(10)
+  isApproved      Boolean        @default(false) @map("is_approved")
+  approvedAt      DateTime?      @map("approved_at")
+  user            User           @relation(fields: [userId], references: [id])
+  prescriptions   Prescription[]
+  refillAlerts    RefillAlert[]
+
+  @@map("doctors")
+}
+
+model Patient {
+  id               String         @id @default(uuid()) @db.Char(36)
+  userId           String         @unique @map("user_id") @db.Char(36)
+  dateOfBirth      DateTime       @map("date_of_birth") @db.Date
+  gender           String         @db.VarChar(20)
+  bloodGroup       String?        @map("blood_group") @db.VarChar(5)
+  address          String
+  city             String         @db.VarChar(80)
+  pincode          String         @db.VarChar(10)
+  aadharNumber     String?        @map("aadhar_number") @db.VarChar(20)
+  emergencyContact String?        @map("emergency_contact") @db.VarChar(15)
+  user             User           @relation(fields: [userId], references: [id])
+  prescriptions    Prescription[]
+  refillAlerts     RefillAlert[]
+  genderRef        Gender         @relation(fields: [gender], references: [code])
+
+  @@map("patients")
+}
+
+model Pharmacy {
+  id               String              @id @default(uuid()) @db.Char(36)
+  name             String              @db.VarChar(150)
+  ownerName        String              @map("owner_name") @db.VarChar(100)
+  licenseNumber    String              @unique @map("license_number") @db.VarChar(50)
+  address          String
+  city             String              @db.VarChar(80)
+  pincode          String              @db.VarChar(10)
+  latitude         Decimal             @db.Decimal(10, 7)
+  longitude        Decimal             @db.Decimal(10, 7)
+  phone            String              @db.VarChar(15)
+  email            String?             @db.VarChar(150)
+  openingTime      DateTime?           @map("opening_time") @db.Time(0)
+  closingTime      DateTime?           @map("closing_time") @db.Time(0)
+  isApproved       Boolean             @default(false) @map("is_approved")
+  isActive         Boolean             @default(true) @map("is_active")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  pharmacists      Pharmacist[]
+  inventory        PharmacyInventory[]
+  dispensedRecords DispensedRecord[]
+
+  @@map("pharmacies")
+}
+
+model Pharmacist {
+  id               String            @id @default(uuid()) @db.Char(36)
+  userId           String            @unique @map("user_id") @db.Char(36)
+  pharmacyId       String            @map("pharmacy_id") @db.Char(36)
+  licenseNumber    String            @unique @map("license_number") @db.VarChar(50)
+  isApproved       Boolean           @default(false) @map("is_approved")
+  user             User              @relation(fields: [userId], references: [id])
+  pharmacy         Pharmacy          @relation(fields: [pharmacyId], references: [id])
+  dispensedRecords DispensedRecord[]
+
+  @@map("pharmacists")
+}
+
+model Prescription {
+  id               String             @id @default(uuid()) @db.Char(36)
+  doctorId         String             @map("doctor_id") @db.Char(36)
+  patientId        String             @map("patient_id") @db.Char(36)
+  qrCode           String             @map("qr_code") @db.LongText
+  qrCodeToken      String             @unique @map("qr_code_token") @db.VarChar(100)
+  status           String             @default("active") @db.VarChar(30)
+  issuedDate       DateTime           @map("issued_date") @db.Date
+  expiryDate       DateTime           @map("expiry_date") @db.Date
+  notes            String?
+  followUpDate     DateTime?          @map("follow_up_date") @db.Date
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  doctor           Doctor             @relation(fields: [doctorId], references: [id])
+  patient          Patient            @relation(fields: [patientId], references: [id])
+  items            PrescriptionItem[]
+  dispensedRecord  DispensedRecord?
+  refillAlerts     RefillAlert[]
+  statusRef        PrescriptionStatus @relation(fields: [status], references: [code])
+
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id             String       @id @default(uuid()) @db.Char(36)
+  prescriptionId String       @map("prescription_id") @db.Char(36)
+  medicineId     String?      @map("medicine_id") @db.Char(36)
+  medicineName   String       @map("medicine_name") @db.VarChar(150)
+  dosage         String       @db.VarChar(50)
+  frequency      String       @db.VarChar(30)
+  durationDays   Int          @map("duration_days")
+  timing         String?      @db.VarChar(30)
+  quantityToTake String?      @map("quantity_to_take") @db.VarChar(50)
+  instructions   String?
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
+  medicine       Medicine?    @relation(fields: [medicineId], references: [id])
+  frequencyRef   MedicineFrequency @relation(fields: [frequency], references: [code])
+  timingRef      MedicineTiming?    @relation(fields: [timing], references: [code])
+
+  @@map("prescription_items")
+}
+
+model Medicine {
+  id                   String              @id @default(uuid()) @db.Char(36)
+  brandName            String              @map("brand_name") @db.VarChar(150)
+  genericName          String              @map("generic_name") @db.VarChar(150)
+  category             String              @db.VarChar(100)
+  manufacturer         String?             @db.VarChar(150)
+  dosageForms          String              @map("dosage_forms") @db.VarChar(100)
+  standardStrength     String?             @map("standard_strength") @db.VarChar(100)
+  requiresPrescription Boolean             @default(true) @map("requires_prescription")
+  description          String?
+  isActive             Boolean             @default(true) @map("is_active")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  prescriptionItems    PrescriptionItem[]
+  inventory            PharmacyInventory[]
+
+  @@map("medicines")
+}
+
+model PharmacyInventory {
+  id           String    @id @default(uuid()) @db.Char(36)
+  pharmacyId   String    @map("pharmacy_id") @db.Char(36)
+  medicineId   String    @map("medicine_id") @db.Char(36)
+  medicineName String    @map("medicine_name") @db.VarChar(150)
+  quantity     Int       @default(0)
+  batchNumber  String?   @map("batch_number") @db.VarChar(50)
+  unitPrice    Decimal?  @map("unit_price") @db.Decimal(8, 2)
+  expiryDate   DateTime? @map("expiry_date") @db.Date
+  reorderLevel Int       @default(10) @map("reorder_level")
+  lastUpdated  DateTime  @default(now()) @updatedAt @map("last_updated")
+  updatedBy    String?   @map("updated_by") @db.Char(36)
+  pharmacy     Pharmacy  @relation(fields: [pharmacyId], references: [id])
+  medicine     Medicine  @relation(fields: [medicineId], references: [id])
+  updatedByUser User?    @relation("InventoryUpdatedBy", fields: [updatedBy], references: [id])
+
+  @@unique([pharmacyId, medicineId, batchNumber])
+  @@map("pharmacy_inventory")
+}
+
+model DispensedRecord {
+  id             String         @id @default(uuid()) @db.Char(36)
+  prescriptionId String         @unique @map("prescription_id") @db.Char(36)
+  pharmacyId     String         @map("pharmacy_id") @db.Char(36)
+  pharmacistId   String         @map("pharmacist_id") @db.Char(36)
+  dispensedAt    DateTime       @default(now()) @map("dispensed_at")
+  status         String         @default("completed") @db.VarChar(30)
+  notes          String?
+  partialReason  String?        @map("partial_reason")
+  prescription   Prescription   @relation(fields: [prescriptionId], references: [id])
+  pharmacy       Pharmacy       @relation(fields: [pharmacyId], references: [id])
+  pharmacist     Pharmacist     @relation(fields: [pharmacistId], references: [id])
+  statusRef      DispenseStatus @relation(fields: [status], references: [code])
+
+  @@map("dispensed_records")
+}
+
+model RefillAlert {
+  id             String       @id @default(uuid()) @db.Char(36)
+  prescriptionId String       @map("prescription_id") @db.Char(36)
+  patientId      String       @map("patient_id") @db.Char(36)
+  doctorId       String       @map("doctor_id") @db.Char(36)
+  alertType      String       @map("alert_type") @db.VarChar(30)
+  alertDate      DateTime     @map("alert_date") @db.Date
+  isSent         Boolean      @default(false) @map("is_sent")
+  sentAt         DateTime?    @map("sent_at")
+  isAcknowledged Boolean      @default(false) @map("is_acknowledged")
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
+  patient        Patient      @relation(fields: [patientId], references: [id])
+  doctor         Doctor       @relation(fields: [doctorId], references: [id])
+  alertTypeRef   AlertType    @relation(fields: [alertType], references: [code])
+
+  @@map("refill_alerts")
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Char(36)
+  userId    String           @map("user_id") @db.Char(36)
+  title     String           @db.VarChar(200)
+  message   String
+  type      String           @db.VarChar(30)
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+  readAt    DateTime?        @map("read_at")
+  user      User             @relation(fields: [userId], references: [id])
+  typeRef   NotificationType @relation(fields: [type], references: [code])
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Char(36)
+  userId      String?  @map("user_id") @db.Char(36)
+  action      String   @db.VarChar(100)
+  entityType  String   @map("entity_type") @db.VarChar(50)
+  entityId    String?  @map("entity_id") @db.Char(36)
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
