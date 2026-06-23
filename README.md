@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # DPCS Backend
 
 Express API for the Digital Prescription and Pharmacy Coordination System.
@@ -104,3 +105,6 @@ npm run prisma:seed
 - `GET /api/admin/dashboard`
 - `PATCH /api/admin/doctors/:id/approval`
 - `PATCH /api/admin/pharmacies/:id/approval`
+=======
+# dpcs_backend
+>>>>>>> b3798482f650e94a10b110aa674593593794f441
