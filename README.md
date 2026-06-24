@@ -103,4 +103,7 @@ npm run prisma:seed
 - `POST /api/pharmacy/prescriptions/:id/dispense`
 - `GET /api/admin/dashboard`
 - `PATCH /api/admin/doctors/:id/approval`
-- `PATCH /api/admin/pharmacies/:id/approval`
+- # `PATCH /api/admin/pharmacies/:id/approval`
+
+# dpcs_backend
+

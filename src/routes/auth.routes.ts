@@ -5,6 +5,7 @@ import { authenticate } from "../middleware/auth";
 import { ApiError } from "../middleware/error";
 import { asyncHandler } from "../utils/asyncHandler";
 import {
+  adminRegistrationSchema,
   doctorRegistrationSchema,
   forgotPasswordSchema,
   loginSchema,
@@ -28,6 +29,29 @@ const publicUserSelect = {
   patient: true,
   pharmacist: { include: { pharmacy: true } },
 };
+
+authRoutes.post(
+  "/register/admin",
+  asyncHandler(async (req, res) => {
+    const body = adminRegistrationSchema.parse(req.body);
+    const passwordHash = await hashPassword(body.password);
+
+    const user = await prisma.user.create({
+      data: {
+        fullName: body.fullName,
+        email: body.email.toLowerCase(),
+        passwordHash,
+        phone: body.phone,
+        role: "admin",
+        isActive: true,
+        isVerified: true,
+      },
+      select: publicUserSelect,
+    });
+
+    res.status(201).json({ message: "Admin registered successfully.", user });
+  }),
+);
 
 authRoutes.post(
   "/register/doctor",

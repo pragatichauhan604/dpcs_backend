@@ -80,7 +80,7 @@ model User {
   phone         String         @db.VarChar(15)
   isActive      Boolean        @default(true) @map("is_active")
   isVerified    Boolean        @default(false) @map("is_verified")
-  profilePhoto  String?        @map("profile_photo") @db.VarChar(255)
+  profilePhoto  String?        @map("profile_photo") @db.LongText
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
   lastLogin     DateTime?      @map("last_login")
@@ -189,6 +189,7 @@ model Prescription {
   qrCode           String             @map("qr_code") @db.LongText
   qrCodeToken      String             @unique @map("qr_code_token") @db.VarChar(100)
   status           String             @default("active") @db.VarChar(30)
+  disease          String?            @db.VarChar(150)
   issuedDate       DateTime           @map("issued_date") @db.Date
   expiryDate       DateTime           @map("expiry_date") @db.Date
   notes            String?
