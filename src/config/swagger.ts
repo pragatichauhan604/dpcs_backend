@@ -66,6 +66,11 @@ export const swaggerSpec = {
           hospitalAddress: { type: "string", example: "Sector 12 Main Road" },
           city: { type: "string", example: "Noida" },
           pincode: { type: "string", example: "201301" },
+          profilePhoto: {
+            type: "string",
+            description: "Optional JPG, PNG, or WebP data URL from the frontend file picker.",
+            example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+          },
         },
       },
       PatientRegistration: {
