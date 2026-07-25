@@ -130,6 +130,29 @@ async function main() {
     }
   }
 
+  await prisma.pharmacy.upsert({
+    where: { id: "550e8400-e29b-41d4-a716-446655440005" },
+    update: {
+      isApproved: true,
+      isActive: true,
+    },
+    create: {
+      id: "550e8400-e29b-41d4-a716-446655440005",
+      name: "DPCS Test Pharmacy",
+      ownerName: "Pragati Chauhan",
+      licenseNumber: "TEST-PHARMACY-001",
+      address: "Main Road, Sector 12",
+      city: "Noida",
+      pincode: "201301",
+      latitude: 28.5355,
+      longitude: 77.3910,
+      phone: "9876543210",
+      email: "testpharmacy@dpcs.local",
+      isApproved: true,
+      isActive: true,
+    },
+  });
+
   console.log("Seed complete");
 }
 

@@ -1,9 +1,11 @@
 import { Router } from "express";
+import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate, authorize } from "../middleware/auth";
 import { ApiError } from "../middleware/error";
 import { asyncHandler } from "../utils/asyncHandler";
 import { buildPartnerOrderUrl } from "../utils/orderLinks";
+import { createPrescriptionPdf } from "../utils/prescriptionPdf";
 
 export const patientRoutes = Router();
 
@@ -14,6 +16,12 @@ const getPatient = async (userId: string) => {
   if (!patient) throw new ApiError(404, "Patient profile not found");
   return patient;
 };
+
+const appointmentSchema = z.object({
+  doctorId: z.string().uuid(),
+  preferredDate: z.coerce.date(),
+  reason: z.string().min(3).max(300),
+});
 
 patientRoutes.get(
   "/dashboard",
@@ -39,9 +47,23 @@ patientRoutes.get(
 
 patientRoutes.get(
   "/doctors",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    const patient = await getPatient(req.user!.id);
+    const q = String(req.query.q || "").trim();
     const doctors = await prisma.doctor.findMany({
-      where: { isApproved: true, user: { isActive: true } },
+      where: {
+        isApproved: true,
+        user: { isActive: true },
+        OR: q
+          ? [
+              { user: { fullName: { contains: q } } },
+              { specialization: { contains: q } },
+              { hospitalName: { contains: q } },
+              { city: { contains: q } },
+              { prescriptions: { some: { patientId: patient.id, disease: { contains: q } } } },
+            ]
+          : undefined,
+      },
       include: {
         user: {
           select: {
@@ -51,6 +73,12 @@ patientRoutes.get(
             phone: true,
             profilePhoto: true,
           },
+        },
+        prescriptions: {
+          where: { patientId: patient.id, disease: { not: null } },
+          select: { disease: true, issuedDate: true },
+          orderBy: { issuedDate: "desc" },
+          take: 3,
         },
       },
       orderBy: { user: { fullName: "asc" } },
@@ -86,6 +114,60 @@ patientRoutes.get(
     if (!prescription) throw new ApiError(404, "Prescription not found");
 
     res.json({ prescription });
+  }),
+);
+
+patientRoutes.get(
+  "/prescriptions/:id/pdf",
+  asyncHandler(async (req, res) => {
+    const patient = await getPatient(req.user!.id);
+    const prescriptionId = String(req.params.id);
+    const prescription = await prisma.prescription.findFirst({
+      where: { id: prescriptionId, patientId: patient.id },
+      include: {
+        doctor: { include: { user: { select: { fullName: true, phone: true } } } },
+        patient: { include: { user: { select: { fullName: true, phone: true } } } },
+        items: true,
+      },
+    });
+    if (!prescription) throw new ApiError(404, "Prescription not found");
+
+    const pdf = createPrescriptionPdf(prescription);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="prescription-${prescription.id}.pdf"`);
+    res.send(pdf);
+  }),
+);
+
+patientRoutes.post(
+  "/appointments",
+  asyncHandler(async (req, res) => {
+    const patient = await getPatient(req.user!.id);
+    const body = appointmentSchema.parse(req.body);
+    const doctor = await prisma.doctor.findFirst({
+      where: { id: body.doctorId, isApproved: true, user: { isActive: true } },
+      include: { user: true },
+    });
+    if (!doctor) throw new ApiError(404, "Doctor not found");
+
+    await prisma.notification.create({
+      data: {
+        userId: doctor.userId,
+        title: "Appointment requested",
+        message: `Patient requested appointment on ${body.preferredDate.toLocaleDateString("en-IN")}. Reason: ${body.reason}`,
+        type: "system",
+      },
+    });
+
+    res.status(201).json({
+      appointment: {
+        doctorId: doctor.id,
+        patientId: patient.id,
+        preferredDate: body.preferredDate,
+        reason: body.reason,
+        status: "requested",
+      },
+    });
   }),
 );
 

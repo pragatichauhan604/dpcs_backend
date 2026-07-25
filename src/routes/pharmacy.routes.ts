@@ -5,6 +5,7 @@ import { authenticate, authorize } from "../middleware/auth";
 import { ApiError } from "../middleware/error";
 import { audit } from "../utils/audit";
 import { asyncHandler } from "../utils/asyncHandler";
+import { createPrescriptionPdf } from "../utils/prescriptionPdf";
 import { dispenseSchema, inventoryUpsertSchema } from "../validators/pharmacy";
 
 export const pharmacyRoutes = Router();
@@ -61,7 +62,7 @@ pharmacyRoutes.get(
   "/prescriptions/scan/:token",
   asyncHandler(async (req, res) => {
     await getPharmacist(req.user!.id);
-    const token = String(req.params.token);
+    const token = extractQrToken(String(req.params.token));
     const prescription = await prisma.prescription.findUnique({
       where: { qrCodeToken: token },
       include: {
@@ -74,6 +75,38 @@ pharmacyRoutes.get(
 
     if (!prescription) throw new ApiError(404, "Prescription not found");
     res.json({ prescription });
+  }),
+);
+
+function extractQrToken(value: string) {
+  try {
+    const decoded = decodeURIComponent(value);
+    const match = decoded.match(/\/qr\/([^/]+)\/pdf/i);
+    return match?.[1] || decoded.trim();
+  } catch {
+    return value.trim();
+  }
+}
+
+pharmacyRoutes.get(
+  "/prescriptions/:id/pdf",
+  asyncHandler(async (req, res) => {
+    await getPharmacist(req.user!.id);
+    const prescriptionId = String(req.params.id);
+    const prescription = await prisma.prescription.findUnique({
+      where: { id: prescriptionId },
+      include: {
+        doctor: { include: { user: { select: { fullName: true, phone: true } } } },
+        patient: { include: { user: { select: { fullName: true, phone: true } } } },
+        items: true,
+      },
+    });
+    if (!prescription) throw new ApiError(404, "Prescription not found");
+
+    const pdf = createPrescriptionPdf(prescription);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="prescription-${prescription.id}.pdf"`);
+    res.send(pdf);
   }),
 );
 
