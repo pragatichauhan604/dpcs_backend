@@ -115,6 +115,7 @@ doctorRoutes.post(
           patientId: patient.id,
           qrCode,
           qrCodeToken: token,
+          disease: body.disease,
           issuedDate: new Date(),
           expiryDate,
           notes: body.notes,

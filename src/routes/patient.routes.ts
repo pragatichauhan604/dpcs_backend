@@ -38,6 +38,29 @@ patientRoutes.get(
 );
 
 patientRoutes.get(
+  "/doctors",
+  asyncHandler(async (_req, res) => {
+    const doctors = await prisma.doctor.findMany({
+      where: { isApproved: true, user: { isActive: true } },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            profilePhoto: true,
+          },
+        },
+      },
+      orderBy: { user: { fullName: "asc" } },
+    });
+
+    res.json({ doctors });
+  }),
+);
+
+patientRoutes.get(
   "/prescriptions",
   asyncHandler(async (req, res) => {
     const patient = await getPatient(req.user!.id);

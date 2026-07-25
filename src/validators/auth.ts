@@ -18,6 +18,12 @@ const passwordMatch = <T extends z.ZodTypeAny>(schema: T) =>
     path: ["confirmPassword"],
   });
 
+const profilePhotoSchema = z
+  .string()
+  .max(2_800_000, "Profile photo must be 2 MB or smaller")
+  .regex(/^data:image\/(png|jpe?g|webp);base64,/i, "Profile photo must be JPG, PNG, or WebP")
+  .optional();
+
 export const doctorRegistrationSchema = passwordMatch(
   z.object({
     ...baseRegistration,
@@ -27,7 +33,7 @@ export const doctorRegistrationSchema = passwordMatch(
     hospitalAddress: z.string().min(5),
     city: z.string().min(2).max(80),
     pincode: z.string().regex(/^\d{6}$/),
-    profilePhoto: z.string().url().optional(),
+    profilePhoto: profilePhotoSchema,
   }),
 );
 
@@ -50,6 +56,12 @@ export const pharmacistRegistrationSchema = passwordMatch(
     ...baseRegistration,
     pharmacyId: z.string().uuid(),
     licenseNumber: z.string().min(3).max(50),
+  }),
+);
+
+export const adminRegistrationSchema = passwordMatch(
+  z.object({
+    ...baseRegistration,
   }),
 );
 

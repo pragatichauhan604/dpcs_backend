@@ -17,6 +17,7 @@ export const prescriptionItemSchema = z.object({
 
 export const createPrescriptionSchema = z.object({
   patientId: z.string().uuid(),
+  disease: z.string().min(2).max(150).optional(),
   notes: z.string().max(3000).optional(),
   followUpDate: z.coerce.date().optional(),
   expiryDate: z.coerce.date().optional(),
