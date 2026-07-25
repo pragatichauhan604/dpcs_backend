@@ -10,6 +10,20 @@ export const adminRoutes = Router();
 
 adminRoutes.use(authenticate, authorize("admin"));
 
+const adminUserSelect = {
+  id: true,
+  fullName: true,
+  email: true,
+  phone: true,
+  role: true,
+  isActive: true,
+  isVerified: true,
+  profilePhoto: true,
+  createdAt: true,
+  updatedAt: true,
+  lastLogin: true,
+};
+
 adminRoutes.get(
   "/dashboard",
   asyncHandler(async (_req, res) => {
@@ -75,7 +89,7 @@ adminRoutes.get(
             ]
           : undefined,
       },
-      include: { user: true, prescriptions: { select: { id: true } } },
+      include: { user: { select: adminUserSelect }, prescriptions: { select: { id: true } } },
       orderBy: { user: { fullName: "asc" } },
     });
 
@@ -95,7 +109,7 @@ adminRoutes.patch(
         approvedAt: body.isApproved ? new Date() : null,
         user: { update: { isActive: body.isApproved } },
       },
-      include: { user: true },
+      include: { user: { select: adminUserSelect } },
     });
 
     res.json({ doctor });
@@ -106,7 +120,7 @@ adminRoutes.get(
   "/patients",
   asyncHandler(async (_req, res) => {
     const patients = await prisma.patient.findMany({
-      include: { user: true, prescriptions: { select: { id: true, status: true } } },
+      include: { user: { select: adminUserSelect }, prescriptions: { select: { id: true, status: true } } },
       orderBy: { user: { fullName: "asc" } },
     });
 
@@ -127,7 +141,7 @@ adminRoutes.get(
   "/pharmacies",
   asyncHandler(async (_req, res) => {
     const pharmacies = await prisma.pharmacy.findMany({
-      include: { pharmacists: { include: { user: true } }, inventory: true },
+      include: { pharmacists: { include: { user: { select: adminUserSelect } } }, inventory: true },
       orderBy: { name: "asc" },
     });
 
@@ -153,7 +167,7 @@ adminRoutes.get(
   "/pharmacists",
   asyncHandler(async (_req, res) => {
     const pharmacists = await prisma.pharmacist.findMany({
-      include: { user: true, pharmacy: true },
+      include: { user: { select: adminUserSelect }, pharmacy: true },
       orderBy: { user: { fullName: "asc" } },
     });
 
@@ -172,7 +186,7 @@ adminRoutes.patch(
         isApproved: body.isApproved,
         user: { update: { isActive: body.isApproved } },
       },
-      include: { user: true, pharmacy: true },
+      include: { user: { select: adminUserSelect }, pharmacy: true },
     });
 
     res.json({ pharmacist });
@@ -184,8 +198,8 @@ adminRoutes.get(
   asyncHandler(async (_req, res) => {
     const prescriptions = await prisma.prescription.findMany({
       include: {
-        doctor: { include: { user: true } },
-        patient: { include: { user: true } },
+        doctor: { include: { user: { select: adminUserSelect } } },
+        patient: { include: { user: { select: adminUserSelect } } },
         items: true,
         dispensedRecord: { include: { pharmacy: true } },
       },

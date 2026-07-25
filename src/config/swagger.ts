@@ -12,7 +12,9 @@ export const swaggerSpec = {
     },
   ],
   tags: [
+    { name: "System" },
     { name: "Auth" },
+    { name: "Public" },
     { name: "Doctor" },
     { name: "Patient" },
     { name: "Pharmacy" },
@@ -106,6 +108,7 @@ export const swaggerSpec = {
         required: ["patientId", "items"],
         properties: {
           patientId: { type: "string", example: "uuid" },
+          disease: { type: "string", example: "Fever" },
           notes: { type: "string", example: "Rest and hydration advised." },
           expiryDate: { type: "string", format: "date" },
           followUpDate: { type: "string", format: "date" },
@@ -128,6 +131,111 @@ export const swaggerSpec = {
           },
         },
       },
+      AdminRegistration: {
+        type: "object",
+        required: ["fullName", "email", "password", "confirmPassword", "phone"],
+        properties: {
+          fullName: { type: "string", example: "DPCS Admin" },
+          email: { type: "string", example: "admin@example.com" },
+          password: { type: "string", example: "Admin1234" },
+          confirmPassword: { type: "string", example: "Admin1234" },
+          phone: { type: "string", example: "9999999999" },
+        },
+      },
+      PharmacistRegistration: {
+        type: "object",
+        required: ["fullName", "email", "password", "confirmPassword", "phone", "pharmacyId", "licenseNumber"],
+        properties: {
+          fullName: { type: "string", example: "Pragati Chauhan" },
+          email: { type: "string", example: "pharmacist@example.com" },
+          password: { type: "string", example: "Pharma123" },
+          confirmPassword: { type: "string", example: "Pharma123" },
+          phone: { type: "string", example: "9876543210" },
+          pharmacyId: { type: "string", format: "uuid", example: "550e8400-e29b-41d4-a716-446655440005" },
+          licenseNumber: { type: "string", example: "PHARMA12345" },
+        },
+      },
+      ForgotPasswordRequest: {
+        type: "object",
+        required: ["email"],
+        properties: {
+          email: { type: "string", example: "patient@example.com" },
+        },
+      },
+      ResetPasswordRequest: {
+        type: "object",
+        required: ["email", "otp", "password", "confirmPassword"],
+        properties: {
+          email: { type: "string", example: "patient@example.com" },
+          otp: { type: "string", example: "123456" },
+          password: { type: "string", example: "NewPass123" },
+          confirmPassword: { type: "string", example: "NewPass123" },
+        },
+      },
+      AppointmentCreate: {
+        type: "object",
+        required: ["doctorId", "preferredDate", "reason"],
+        properties: {
+          doctorId: { type: "string", format: "uuid", example: "550e8400-e29b-41d4-a716-446655440005" },
+          preferredDate: { type: "string", format: "date", example: "2026-07-30" },
+          reason: { type: "string", example: "Follow-up for fever treatment" },
+        },
+      },
+      PharmacyCreate: {
+        type: "object",
+        required: ["name", "ownerName", "licenseNumber", "address", "city", "pincode", "latitude", "longitude", "phone"],
+        properties: {
+          name: { type: "string", example: "DPCS Test Pharmacy" },
+          ownerName: { type: "string", example: "Pragati Chauhan" },
+          licenseNumber: { type: "string", example: "TEST-PHARMACY-001" },
+          address: { type: "string", example: "Main Road, Sector 12" },
+          city: { type: "string", example: "Noida" },
+          pincode: { type: "string", example: "201301" },
+          latitude: { type: "number", example: 28.5355 },
+          longitude: { type: "number", example: 77.391 },
+          phone: { type: "string", example: "9876543210" },
+          email: { type: "string", example: "testpharmacy@dpcs.local" },
+        },
+      },
+      MedicineUpsert: {
+        type: "object",
+        required: ["brandName", "genericName", "category", "dosageForms"],
+        properties: {
+          brandName: { type: "string", example: "Dolo 650" },
+          genericName: { type: "string", example: "Paracetamol" },
+          category: { type: "string", example: "Analgesic" },
+          manufacturer: { type: "string", example: "Micro Labs" },
+          dosageForms: { type: "string", example: "Tablet" },
+          standardStrength: { type: "string", example: "650mg" },
+          requiresPrescription: { type: "boolean", example: true },
+          description: { type: "string", example: "Used for fever and pain relief." },
+          isActive: { type: "boolean", example: true },
+        },
+      },
+      InventoryUpsert: {
+        type: "object",
+        required: ["medicineId", "quantity"],
+        properties: {
+          medicineId: { type: "string", format: "uuid", example: "550e8400-e29b-41d4-a716-446655440001" },
+          quantity: { type: "integer", example: 50 },
+          batchNumber: { type: "string", example: "BATCH-2026-01" },
+          unitPrice: { type: "number", example: 24.5 },
+          expiryDate: { type: "string", format: "date", example: "2027-12-31" },
+          reorderLevel: { type: "integer", example: 10 },
+        },
+      },
+      DispenseRequest: {
+        type: "object",
+        properties: {
+          status: {
+            type: "string",
+            description: "Use one of the status values stored/validated by the backend: completed, partial, or rejected.",
+            example: "completed",
+          },
+          notes: { type: "string", example: "All medicines dispensed." },
+          partialReason: { type: "string", example: "One medicine was out of stock." },
+        },
+      },
       Error: {
         type: "object",
         properties: {
@@ -142,6 +250,14 @@ export const swaggerSpec = {
         tags: ["System"],
         summary: "Health check",
         responses: { "200": { description: "API is running" } },
+      },
+    },
+    "/api/auth/register/admin": {
+      post: {
+        tags: ["Auth"],
+        summary: "Register admin",
+        requestBody: jsonBody("AdminRegistration"),
+        responses: created("Admin registered"),
       },
     },
     "/api/auth/register/doctor": {
@@ -164,26 +280,7 @@ export const swaggerSpec = {
       post: {
         tags: ["Auth"],
         summary: "Register pharmacist",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                required: ["fullName", "email", "password", "confirmPassword", "phone", "pharmacyId", "licenseNumber"],
-                properties: {
-                  fullName: { type: "string" },
-                  email: { type: "string" },
-                  password: { type: "string" },
-                  confirmPassword: { type: "string" },
-                  phone: { type: "string" },
-                  pharmacyId: { type: "string" },
-                  licenseNumber: { type: "string" },
-                },
-              },
-            },
-          },
-        },
+        requestBody: jsonBody("PharmacistRegistration"),
         responses: created("Pharmacist registered"),
       },
     },
@@ -195,12 +292,37 @@ export const swaggerSpec = {
         responses: ok("Login successful"),
       },
     },
+    "/api/auth/forgot-password": {
+      post: {
+        tags: ["Auth"],
+        summary: "Generate password reset OTP",
+        requestBody: jsonBody("ForgotPasswordRequest"),
+        responses: ok("Password reset OTP generated"),
+      },
+    },
+    "/api/auth/reset-password": {
+      post: {
+        tags: ["Auth"],
+        summary: "Reset password with OTP",
+        requestBody: jsonBody("ResetPasswordRequest"),
+        responses: ok("Password reset successful"),
+      },
+    },
     "/api/auth/me": {
       get: {
         tags: ["Auth"],
         summary: "Current user",
         security: bearer(),
         responses: ok("Current user returned"),
+      },
+    },
+    "/api/public/prescriptions/qr/{token}/pdf": {
+      get: {
+        tags: ["Public"],
+        summary: "Download prescription PDF from QR token",
+        description: "Used by QR codes generated for new prescriptions. No login required.",
+        parameters: [{ name: "token", in: "path", required: true, schema: { type: "string" } }],
+        responses: pdfOk("Prescription PDF downloaded"),
       },
     },
     "/api/catalog/medicines": {
@@ -234,6 +356,7 @@ export const swaggerSpec = {
         responses: ok("Patient matches returned"),
       },
     },
+    "/api/doctor/patients": route("Doctor", "Doctor patients"),
     "/api/doctor/prescriptions": {
       get: {
         tags: ["Doctor"],
@@ -250,6 +373,25 @@ export const swaggerSpec = {
       },
     },
     "/api/patient/dashboard": route("Patient", "Patient dashboard"),
+    "/api/patient/doctors": {
+      get: {
+        tags: ["Patient"],
+        summary: "List/search approved doctors",
+        description: "Search can match doctor name, specialization, hospital, city, or disease from the patient's issued prescriptions.",
+        security: bearer(),
+        parameters: queryParams([{ name: "q", schema: { type: "string" } }]),
+        responses: ok("Doctors returned"),
+      },
+    },
+    "/api/patient/appointments": {
+      post: {
+        tags: ["Patient"],
+        summary: "Request doctor appointment",
+        security: bearer(),
+        requestBody: jsonBody("AppointmentCreate"),
+        responses: created("Appointment request created"),
+      },
+    },
     "/api/patient/prescriptions": route("Patient", "Patient prescriptions"),
     "/api/patient/prescriptions/{id}/qr": {
       get: {
@@ -258,6 +400,24 @@ export const swaggerSpec = {
         security: bearer(),
         parameters: pathId(),
         responses: ok("QR code returned"),
+      },
+    },
+    "/api/patient/prescriptions/{id}/pdf": {
+      get: {
+        tags: ["Patient"],
+        summary: "Download prescription PDF",
+        security: bearer(),
+        parameters: pathId(),
+        responses: pdfOk("Prescription PDF downloaded"),
+      },
+    },
+    "/api/patient/prescriptions/{id}/order-link": {
+      get: {
+        tags: ["Patient"],
+        summary: "Get partner medicine order link",
+        security: bearer(),
+        parameters: pathId(),
+        responses: ok("Order link returned"),
       },
     },
     "/api/patient/prescriptions/{id}/refill-request": {
@@ -269,13 +429,24 @@ export const swaggerSpec = {
         responses: created("Refill request created"),
       },
     },
+    "/api/pharmacy/dashboard": route("Pharmacy", "Pharmacy dashboard"),
     "/api/pharmacy/prescriptions/scan/{token}": {
       get: {
         tags: ["Pharmacy"],
-        summary: "Scan QR token",
+        summary: "Scan QR token or QR PDF link",
+        description: "Accepts a raw QR token or the generated QR PDF link. URL-encode full links before passing them in the path.",
         security: bearer(),
         parameters: [{ name: "token", in: "path", required: true, schema: { type: "string" } }],
         responses: ok("Prescription returned"),
+      },
+    },
+    "/api/pharmacy/prescriptions/{id}/pdf": {
+      get: {
+        tags: ["Pharmacy"],
+        summary: "Download scanned prescription PDF",
+        security: bearer(),
+        parameters: pathId(),
+        responses: pdfOk("Prescription PDF downloaded"),
       },
     },
     "/api/pharmacy/prescriptions/{id}/dispense": {
@@ -284,6 +455,7 @@ export const swaggerSpec = {
         summary: "Mark prescription dispensed",
         security: bearer(),
         parameters: pathId(),
+        requestBody: jsonBody("DispenseRequest"),
         responses: created("Dispense record created"),
       },
     },
@@ -298,12 +470,24 @@ export const swaggerSpec = {
         tags: ["Pharmacy"],
         summary: "Add inventory record",
         security: bearer(),
+        requestBody: jsonBody("InventoryUpsert"),
         responses: created("Inventory record created"),
+      },
+    },
+    "/api/pharmacy/inventory/{id}": {
+      patch: {
+        tags: ["Pharmacy"],
+        summary: "Update inventory record",
+        security: bearer(),
+        parameters: pathId(),
+        requestBody: jsonBody("InventoryUpsert"),
+        responses: ok("Inventory record updated"),
       },
     },
     "/api/admin/dashboard": route("Admin", "Admin dashboard"),
     "/api/admin/doctors": route("Admin", "List doctors"),
     "/api/admin/doctors/{id}/approval": approvalRoute("Admin", "Approve or suspend doctor"),
+    "/api/admin/patients": route("Admin", "List patients"),
     "/api/admin/pharmacies": {
       get: {
         tags: ["Admin"],
@@ -315,18 +499,34 @@ export const swaggerSpec = {
         tags: ["Admin"],
         summary: "Create pharmacy",
         security: bearer(),
+        requestBody: jsonBody("PharmacyCreate"),
         responses: created("Pharmacy created"),
       },
     },
     "/api/admin/pharmacies/{id}/approval": approvalRoute("Admin", "Approve or suspend pharmacy"),
+    "/api/admin/pharmacists": route("Admin", "List pharmacists"),
+    "/api/admin/pharmacists/{id}/approval": approvalRoute("Admin", "Approve or suspend pharmacist"),
+    "/api/admin/prescriptions": route("Admin", "List prescriptions"),
     "/api/admin/medicines": {
       post: {
         tags: ["Admin"],
         summary: "Add medicine to master list",
         security: bearer(),
+        requestBody: jsonBody("MedicineUpsert"),
         responses: created("Medicine created"),
       },
     },
+    "/api/admin/medicines/{id}": {
+      patch: {
+        tags: ["Admin"],
+        summary: "Update medicine in master list",
+        security: bearer(),
+        parameters: pathId(),
+        requestBody: jsonBody("MedicineUpsert"),
+        responses: ok("Medicine updated"),
+      },
+    },
+    "/api/admin/reports/audit-logs": route("Admin", "Audit logs report"),
     "/api/notifications": route("Notifications", "User notifications"),
     "/api/notifications/{id}/read": {
       patch: {
@@ -369,6 +569,26 @@ function created(description: string) {
     "201": { description },
     "400": { description: "Bad request" },
     "422": { description: "Validation failed" },
+    "500": { description: "Internal server error" },
+  };
+}
+
+function pdfOk(description: string) {
+  return {
+    "200": {
+      description,
+      content: {
+        "application/pdf": {
+          schema: {
+            type: "string",
+            format: "binary",
+          },
+        },
+      },
+    },
+    "401": { description: "Unauthorized" },
+    "403": { description: "Access denied" },
+    "404": { description: "Not found" },
     "500": { description: "Internal server error" },
   };
 }
