@@ -2,11 +2,11 @@
   "name": "dpcs-backend",
   "version": "1.0.0",
   "description": "Backend API for the Digital Prescription and Pharmacy Coordination System",
-  "main": "dist/server.js",
+  "main": "dist/server.ts",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/server.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts"
