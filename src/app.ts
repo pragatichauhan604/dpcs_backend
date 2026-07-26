@@ -17,7 +17,7 @@ const allowedOrigins = new Set([
     .filter(Boolean) || []),
   "http://localhost:5173",
   "http://127.0.0.1:5173",
-  "https://dpcs.vercel.app",
+  "https://dpcs-frontend.vercel.app/",
 ]);
 
 app.use(helmet());
