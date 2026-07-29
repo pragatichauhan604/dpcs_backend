@@ -33,16 +33,37 @@ catalogRoutes.get(
   authenticate,
   asyncHandler(async (req, res) => {
     const medicineId = String(req.query.medicineId || "");
+    const q = String(req.query.q || "").trim();
     const city = String(req.query.city || "");
+    const matchedMedicines = q
+      ? await prisma.medicine.findMany({
+          where: {
+            isActive: true,
+            OR: [
+              { brandName: { contains: q } },
+              { genericName: { contains: q } },
+              { category: { contains: q } },
+            ],
+          },
+          select: { id: true },
+        })
+      : [];
+    const matchedMedicineIds = matchedMedicines.map((medicine) => medicine.id);
 
     const inventory = await prisma.pharmacyInventory.findMany({
       where: {
         medicineId: medicineId || undefined,
+        OR: q
+          ? [
+              { medicineName: { contains: q } },
+              { medicineId: { in: matchedMedicineIds } },
+            ]
+          : undefined,
         quantity: { gt: 0 },
         pharmacy: {
           isActive: true,
           isApproved: true,
-          city: city || undefined,
+          city: city ? { contains: city } : undefined,
         },
       },
       include: { pharmacy: true, medicine: true },

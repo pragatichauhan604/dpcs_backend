@@ -71,6 +71,14 @@ model NotificationType {
   @@map("notification_types")
 }
 
+model AppointmentStatus {
+  code         String        @id @db.VarChar(30)
+  label        String        @db.VarChar(80)
+  appointments Appointment[]
+
+  @@map("appointment_statuses")
+}
+
 model User {
   id            String         @id @default(uuid()) @db.Char(36)
   fullName      String         @map("full_name") @db.VarChar(100)
@@ -122,6 +130,7 @@ model Doctor {
   user            User           @relation(fields: [userId], references: [id])
   prescriptions   Prescription[]
   refillAlerts    RefillAlert[]
+  appointments    Appointment[]
 
   @@map("doctors")
 }
@@ -140,9 +149,31 @@ model Patient {
   user             User           @relation(fields: [userId], references: [id])
   prescriptions    Prescription[]
   refillAlerts     RefillAlert[]
+  appointments     Appointment[]
   genderRef        Gender         @relation(fields: [gender], references: [code])
 
   @@map("patients")
+}
+
+model Appointment {
+  id            String            @id @default(uuid()) @db.Char(36)
+  patientId     String            @map("patient_id") @db.Char(36)
+  doctorId      String            @map("doctor_id") @db.Char(36)
+  requestedDate DateTime          @map("requested_date") @db.DateTime(3)
+  reason        String            @db.VarChar(300)
+  status        String            @default("requested") @db.VarChar(30)
+  scheduledAt   DateTime?         @map("scheduled_at") @db.DateTime(3)
+  doctorNote    String?           @map("doctor_note")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.DateTime(3)
+  patient       Patient           @relation(fields: [patientId], references: [id])
+  doctor        Doctor            @relation(fields: [doctorId], references: [id])
+  statusRef     AppointmentStatus @relation(fields: [status], references: [code])
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([status])
+  @@map("appointments")
 }
 
 model Pharmacy {

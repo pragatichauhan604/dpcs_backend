@@ -245,3 +245,95 @@ adminRoutes.get(
     res.json({ auditLogs });
   }),
 );
+
+adminRoutes.get(
+  "/reports/summary",
+  asyncHandler(async (_req, res) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    const [
+      prescriptionsToday,
+      prescriptionsThisMonth,
+      dispensedThisMonth,
+      lowStockCount,
+      topMedicines,
+      prescriptionsByDoctor,
+      cityWisePatients,
+      recentPrescriptions,
+      appointmentSummary,
+    ] = await Promise.all([
+      prisma.prescription.count({ where: { createdAt: { gte: today } } }),
+      prisma.prescription.count({ where: { createdAt: { gte: monthStart } } }),
+      prisma.dispensedRecord.count({ where: { dispensedAt: { gte: monthStart } } }),
+      prisma.pharmacyInventory.count({ where: { quantity: { lte: 10 } } }),
+      prisma.prescriptionItem.groupBy({
+        by: ["medicineName"],
+        _count: { medicineName: true },
+        orderBy: { _count: { medicineName: "desc" } },
+        take: 8,
+      }),
+      prisma.prescription.groupBy({
+        by: ["doctorId"],
+        _count: { doctorId: true },
+        orderBy: { _count: { doctorId: "desc" } },
+        take: 8,
+      }),
+      prisma.patient.groupBy({
+        by: ["city"],
+        _count: { city: true },
+        orderBy: { _count: { city: "desc" } },
+        take: 8,
+      }),
+      prisma.prescription.findMany({
+        include: {
+          doctor: { include: { user: { select: adminUserSelect } } },
+          patient: { include: { user: { select: adminUserSelect } } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 8,
+      }),
+      prisma.$queryRaw<{ status: string; count: bigint }[]>`
+        SELECT status, COUNT(*) AS count
+        FROM appointments
+        GROUP BY status
+      `,
+    ]);
+
+    const doctorIds = prescriptionsByDoctor.map((item) => item.doctorId);
+    const doctors = await prisma.doctor.findMany({
+      where: { id: { in: doctorIds } },
+      include: { user: { select: { fullName: true } } },
+    });
+
+    const doctorNameById = new Map(doctors.map((doctor) => [doctor.id, doctor.user.fullName]));
+
+    res.json({
+      cards: {
+        prescriptionsToday,
+        prescriptionsThisMonth,
+        dispensedThisMonth,
+        lowStockCount,
+      },
+      topMedicines: topMedicines.map((item) => ({
+        medicineName: item.medicineName,
+        count: item._count.medicineName,
+      })),
+      prescriptionsByDoctor: prescriptionsByDoctor.map((item) => ({
+        doctorName: doctorNameById.get(item.doctorId) || "Doctor",
+        count: item._count.doctorId,
+      })),
+      cityWisePatients: cityWisePatients.map((item) => ({
+        city: item.city,
+        count: item._count.city,
+      })),
+      appointmentSummary: appointmentSummary.map((item) => ({
+        status: item.status,
+        count: Number(item.count),
+      })),
+      recentPrescriptions,
+    });
+  }),
+);
