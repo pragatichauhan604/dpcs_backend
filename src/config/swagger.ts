@@ -108,6 +108,7 @@ export const swaggerSpec = {
         required: ["patientId", "items"],
         properties: {
           patientId: { type: "string", example: "uuid" },
+          appointmentId: { type: "string", format: "uuid", example: "550e8400-e29b-41d4-a716-446655440010" },
           disease: { type: "string", example: "Fever" },
           notes: { type: "string", example: "Rest and hydration advised." },
           expiryDate: { type: "string", format: "date" },
@@ -179,6 +180,14 @@ export const swaggerSpec = {
           doctorId: { type: "string", format: "uuid", example: "550e8400-e29b-41d4-a716-446655440005" },
           preferredDate: { type: "string", format: "date", example: "2026-07-30" },
           reason: { type: "string", example: "Follow-up for fever treatment" },
+        },
+      },
+      AppointmentSchedule: {
+        type: "object",
+        required: ["scheduledAt"],
+        properties: {
+          scheduledAt: { type: "string", format: "date-time", example: "2026-07-30T10:30:00.000Z" },
+          doctorNote: { type: "string", example: "Please come to room 204 with previous reports." },
         },
       },
       PharmacyCreate: {
@@ -341,6 +350,7 @@ export const swaggerSpec = {
         security: bearer(),
         parameters: queryParams([
           { name: "medicineId", schema: { type: "string" } },
+          { name: "q", schema: { type: "string" } },
           { name: "city", schema: { type: "string" } },
         ]),
         responses: ok("Inventory availability returned"),
@@ -357,6 +367,16 @@ export const swaggerSpec = {
       },
     },
     "/api/doctor/patients": route("Doctor", "Doctor patients"),
+    "/api/doctor/appointments/{id}/schedule": {
+      post: {
+        tags: ["Doctor"],
+        summary: "Schedule appointment request",
+        security: bearer(),
+        parameters: pathId(),
+        requestBody: jsonBody("AppointmentSchedule"),
+        responses: ok("Appointment scheduled"),
+      },
+    },
     "/api/doctor/prescriptions": {
       get: {
         tags: ["Doctor"],
@@ -527,6 +547,7 @@ export const swaggerSpec = {
       },
     },
     "/api/admin/reports/audit-logs": route("Admin", "Audit logs report"),
+    "/api/admin/reports/summary": route("Admin", "Admin analytics report summary"),
     "/api/notifications": route("Notifications", "User notifications"),
     "/api/notifications/{id}/read": {
       patch: {

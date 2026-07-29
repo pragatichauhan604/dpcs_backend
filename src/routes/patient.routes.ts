@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate, authorize } from "../middleware/auth";
@@ -12,7 +13,7 @@ export const patientRoutes = Router();
 patientRoutes.use(authenticate, authorize("patient"));
 
 const getPatient = async (userId: string) => {
-  const patient = await prisma.patient.findUnique({ where: { userId } });
+  const patient = await prisma.patient.findUnique({ where: { userId }, include: { user: true } });
   if (!patient) throw new ApiError(404, "Patient profile not found");
   return patient;
 };
@@ -150,23 +151,34 @@ patientRoutes.post(
     });
     if (!doctor) throw new ApiError(404, "Doctor not found");
 
-    await prisma.notification.create({
-      data: {
-        userId: doctor.userId,
-        title: "Appointment requested",
-        message: `Patient requested appointment on ${body.preferredDate.toLocaleDateString("en-IN")}. Reason: ${body.reason}`,
-        type: "system",
-      },
+    const appointmentId = randomUUID();
+    const appointment = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        INSERT INTO appointments (id, patient_id, doctor_id, requested_date, reason, status)
+        VALUES (${appointmentId}, ${patient.id}, ${doctor.id}, ${body.preferredDate}, ${body.reason}, 'requested')
+      `;
+
+      await tx.notification.create({
+        data: {
+          userId: doctor.userId,
+          title: "Appointment requested",
+          message: `${patient.user.fullName} requested appointment on ${body.preferredDate.toLocaleDateString("en-IN")}. Reason: ${body.reason}`,
+          type: "system",
+        },
+      });
+
+      return {
+        id: appointmentId,
+        doctorId: doctor.id,
+        patientId: patient.id,
+        requestedDate: body.preferredDate,
+        reason: body.reason,
+        status: "requested",
+      };
     });
 
     res.status(201).json({
-      appointment: {
-        doctorId: doctor.id,
-        patientId: patient.id,
-        preferredDate: body.preferredDate,
-        reason: body.reason,
-        status: "requested",
-      },
+      appointment,
     });
   }),
 );
