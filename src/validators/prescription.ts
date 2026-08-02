@@ -24,3 +24,11 @@ export const createPrescriptionSchema = z.object({
   expiryDate: z.coerce.date().optional(),
   items: z.array(prescriptionItemSchema).min(1),
 });
+
+export const updatePrescriptionSchema = z.object({
+  disease: z.string().min(2).max(150).optional(),
+  notes: z.string().max(3000).optional(),
+  followUpDate: z.coerce.date().optional(),
+  expiryDate: z.coerce.date().optional(),
+  items: z.array(prescriptionItemSchema).min(1),
+});

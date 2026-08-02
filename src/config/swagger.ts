@@ -245,6 +245,18 @@ export const swaggerSpec = {
           partialReason: { type: "string", example: "One medicine was out of stock." },
         },
       },
+      RefillResponse: {
+        type: "object",
+        required: ["status"],
+        properties: {
+          status: {
+            type: "string",
+            description: "Use a value from refill_request_statuses: approved or rejected.",
+            example: "approved",
+          },
+          doctorNote: { type: "string", example: "Approved for one refill. Please follow the same dosage." },
+        },
+      },
       Error: {
         type: "object",
         properties: {
@@ -343,6 +355,18 @@ export const swaggerSpec = {
         responses: ok("Medicine list returned"),
       },
     },
+    "/api/catalog/pharmacies": {
+      get: {
+        tags: ["Catalog"],
+        summary: "List approved pharmacies",
+        security: bearer(),
+        parameters: queryParams([
+          { name: "q", schema: { type: "string" } },
+          { name: "city", schema: { type: "string" } },
+        ]),
+        responses: ok("Approved pharmacies returned"),
+      },
+    },
     "/api/catalog/availability": {
       get: {
         tags: ["Catalog"],
@@ -377,6 +401,25 @@ export const swaggerSpec = {
         responses: ok("Appointment scheduled"),
       },
     },
+    "/api/doctor/refill-requests": {
+      get: {
+        tags: ["Doctor"],
+        summary: "List refill requests",
+        description: "Returns patient refill requests for the logged-in doctor with requested, approved, or rejected status.",
+        security: bearer(),
+        responses: ok("Refill requests returned"),
+      },
+    },
+    "/api/doctor/refill-requests/{id}": {
+      patch: {
+        tags: ["Doctor"],
+        summary: "Approve or reject refill request",
+        security: bearer(),
+        parameters: pathId(),
+        requestBody: jsonBody("RefillResponse"),
+        responses: ok("Refill request reviewed and patient notified"),
+      },
+    },
     "/api/doctor/prescriptions": {
       get: {
         tags: ["Doctor"],
@@ -390,6 +433,17 @@ export const swaggerSpec = {
         security: bearer(),
         requestBody: jsonBody("PrescriptionCreate"),
         responses: created("Prescription created"),
+      },
+    },
+    "/api/doctor/prescriptions/{id}": {
+      patch: {
+        tags: ["Doctor"],
+        summary: "Edit prescription within allowed time",
+        description: "Doctors can edit a prescription only within the configured edit window, default 30 minutes, and not after it is dispensed.",
+        security: bearer(),
+        parameters: pathId(),
+        requestBody: jsonBody("PrescriptionCreate"),
+        responses: ok("Prescription updated"),
       },
     },
     "/api/patient/dashboard": route("Patient", "Patient dashboard"),

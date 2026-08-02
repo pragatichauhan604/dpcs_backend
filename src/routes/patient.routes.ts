@@ -162,7 +162,7 @@ patientRoutes.post(
         data: {
           userId: doctor.userId,
           title: "Appointment requested",
-          message: `${patient.user.fullName} requested appointment on ${body.preferredDate.toLocaleDateString("en-IN")}. Reason: ${body.reason}`,
+          message: `${patient.user.fullName} requested appointment on ${body.preferredDate.toLocaleString("en-IN")}. Reason: ${body.reason}`,
           type: "system",
         },
       });

@@ -92,6 +92,18 @@ async function main() {
     `;
   }
 
+  for (const [code, label] of [
+    ["requested", "Requested"],
+    ["approved", "Approved"],
+    ["rejected", "Rejected"],
+  ]) {
+    await prisma.$executeRaw`
+      INSERT INTO refill_request_statuses (code, label)
+      VALUES (${code}, ${label})
+      ON DUPLICATE KEY UPDATE label = VALUES(label)
+    `;
+  }
+
   await prisma.user.upsert({
     where: { email: adminEmail },
     update: {},

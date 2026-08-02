@@ -7,11 +7,13 @@ import { ApiError } from "../middleware/error";
 import { audit } from "../utils/audit";
 import { asyncHandler } from "../utils/asyncHandler";
 import { createPrescriptionQr } from "../utils/qr";
-import { createPrescriptionSchema } from "../validators/prescription";
+import { createPrescriptionSchema, updatePrescriptionSchema } from "../validators/prescription";
 
 export const doctorRoutes = Router();
 
 doctorRoutes.use(authenticate, authorize("doctor"));
+
+const PRESCRIPTION_EDIT_WINDOW_MINUTES = Number(process.env.PRESCRIPTION_EDIT_WINDOW_MINUTES || 30);
 
 const getDoctor = async (userId: string) => {
   const doctor = await prisma.doctor.findUnique({ where: { userId } });
@@ -22,6 +24,13 @@ const getDoctor = async (userId: string) => {
 
 const scheduleAppointmentSchema = z.object({
   scheduledAt: z.coerce.date(),
+  doctorNote: z.string().max(1000).optional(),
+});
+
+const refillResponseSchema = z.object({
+  status: z.string().refine((value) => ["approved", "rejected"].includes(value), {
+    message: "Status must be approved or rejected",
+  }),
   doctorNote: z.string().max(1000).optional(),
 });
 
@@ -39,6 +48,22 @@ type AppointmentRequestRow = {
   createdAt: Date;
 };
 
+type RefillRequestRow = {
+  id: string;
+  prescriptionId: string;
+  patientId: string;
+  patientName: string;
+  patientPhone: string;
+  patientEmail: string;
+  alertDate: Date;
+  status: string;
+  doctorNote: string | null;
+  respondedAt: Date | null;
+  disease: string | null;
+  issuedDate: Date;
+  expiryDate: Date;
+};
+
 doctorRoutes.get(
   "/dashboard",
   asyncHandler(async (req, res) => {
@@ -54,9 +79,13 @@ doctorRoutes.get(
         by: ["patientId"],
         where: { doctorId: doctor.id, status: "active", expiryDate: { gte: new Date() } },
       }),
-      prisma.refillAlert.count({
-        where: { doctorId: doctor.id, alertType: "expiry_warning", isAcknowledged: false },
-      }),
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*) AS count
+        FROM refill_alerts
+        WHERE doctor_id = ${doctor.id}
+          AND alert_type = 'refill_request'
+          AND status = 'requested'
+      `,
       prisma.prescription.findMany({
         where: { doctorId: doctor.id },
         include: { patient: { include: { user: true } }, items: true },
@@ -88,10 +117,143 @@ doctorRoutes.get(
     res.json({
       totalPrescriptionsToday: todayCount,
       totalActivePatients: activePatients.length,
-      pendingRefillAlerts: pendingRefills,
+      pendingRefillAlerts: Number(pendingRefills[0]?.count || 0),
       pendingAppointmentRequests: appointmentRequests.filter((item) => item.status === "requested").length,
       appointmentRequests,
       recentPrescriptions,
+    });
+  }),
+);
+
+doctorRoutes.get(
+  "/refill-requests",
+  asyncHandler(async (req, res) => {
+    const doctor = await getDoctor(req.user!.id);
+    const requests = await prisma.$queryRaw<RefillRequestRow[]>`
+      SELECT
+        ra.id,
+        ra.prescription_id AS prescriptionId,
+        ra.patient_id AS patientId,
+        u.full_name AS patientName,
+        u.phone AS patientPhone,
+        u.email AS patientEmail,
+        ra.alert_date AS alertDate,
+        ra.status,
+        ra.doctor_note AS doctorNote,
+        ra.responded_at AS respondedAt,
+        p.disease,
+        p.issued_date AS issuedDate,
+        p.expiry_date AS expiryDate
+      FROM refill_alerts ra
+      INNER JOIN patients pt ON pt.id = ra.patient_id
+      INNER JOIN users u ON u.id = pt.user_id
+      INNER JOIN prescriptions p ON p.id = ra.prescription_id
+      WHERE ra.doctor_id = ${doctor.id}
+        AND ra.alert_type = 'refill_request'
+      ORDER BY
+        CASE ra.status WHEN 'requested' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,
+        ra.alert_date DESC
+    `;
+
+    const prescriptionIds = [...new Set(requests.map((item) => item.prescriptionId))];
+    const items = prescriptionIds.length
+      ? await prisma.prescriptionItem.findMany({
+          where: { prescriptionId: { in: prescriptionIds } },
+          orderBy: { medicineName: "asc" },
+        })
+      : [];
+
+    res.json({
+      refillRequests: requests.map((request) => ({
+        ...request,
+        items: items.filter((item) => item.prescriptionId === request.prescriptionId),
+      })),
+    });
+  }),
+);
+
+doctorRoutes.patch(
+  "/refill-requests/:id",
+  asyncHandler(async (req, res) => {
+    const doctor = await getDoctor(req.user!.id);
+    const refillRequestId = String(req.params.id);
+    const body = refillResponseSchema.parse(req.body);
+
+    const existing = (
+      await prisma.$queryRaw<RefillRequestRow[]>`
+        SELECT
+          ra.id,
+          ra.prescription_id AS prescriptionId,
+          ra.patient_id AS patientId,
+          u.full_name AS patientName,
+          u.phone AS patientPhone,
+          u.email AS patientEmail,
+          ra.alert_date AS alertDate,
+          ra.status,
+          ra.doctor_note AS doctorNote,
+          ra.responded_at AS respondedAt,
+          p.disease,
+          p.issued_date AS issuedDate,
+          p.expiry_date AS expiryDate
+        FROM refill_alerts ra
+        INNER JOIN patients pt ON pt.id = ra.patient_id
+        INNER JOIN users u ON u.id = pt.user_id
+        INNER JOIN prescriptions p ON p.id = ra.prescription_id
+        WHERE ra.id = ${refillRequestId}
+          AND ra.doctor_id = ${doctor.id}
+          AND ra.alert_type = 'refill_request'
+        LIMIT 1
+      `
+    )[0];
+
+    if (!existing) throw new ApiError(404, "Refill request not found");
+    if (existing.status !== "requested") throw new ApiError(409, "This refill request is already reviewed");
+
+    const patient = await prisma.patient.findUnique({ where: { id: existing.patientId } });
+    if (!patient) throw new ApiError(404, "Patient profile not found");
+
+    const reviewedAt = new Date();
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.$executeRaw`
+        UPDATE refill_alerts
+        SET status = ${body.status},
+            doctor_note = ${body.doctorNote || null},
+            responded_at = ${reviewedAt},
+            is_acknowledged = true,
+            sent_at = ${reviewedAt},
+            is_sent = true
+        WHERE id = ${refillRequestId}
+          AND doctor_id = ${doctor.id}
+      `;
+
+      await tx.notification.create({
+        data: {
+          userId: patient.userId,
+          title: body.status === "approved" ? "Refill request approved" : "Refill request rejected",
+          message:
+            body.status === "approved"
+              ? `Your refill request for ${existing.disease || "your prescription"} was approved.${body.doctorNote ? ` Note: ${body.doctorNote}` : ""}`
+              : `Your refill request for ${existing.disease || "your prescription"} was rejected.${body.doctorNote ? ` Reason: ${body.doctorNote}` : ""}`,
+          type: "refill",
+        },
+      });
+    });
+
+    await audit({
+      userId: req.user!.id,
+      action: body.status === "approved" ? "APPROVE_REFILL_REQUEST" : "REJECT_REFILL_REQUEST",
+      entityType: "refill_alert",
+      entityId: refillRequestId,
+      ipAddress: req.ip,
+    });
+
+    res.json({
+      refillRequest: {
+        ...existing,
+        status: body.status,
+        doctorNote: body.doctorNote || null,
+        respondedAt: reviewedAt,
+      },
     });
   }),
 );
@@ -294,6 +456,76 @@ doctorRoutes.post(
     });
 
     res.status(201).json({ prescription });
+  }),
+);
+
+doctorRoutes.patch(
+  "/prescriptions/:id",
+  asyncHandler(async (req, res) => {
+    const doctor = await getDoctor(req.user!.id);
+    const prescriptionId = String(req.params.id);
+    const body = updatePrescriptionSchema.parse(req.body);
+    const existing = await prisma.prescription.findFirst({
+      where: { id: prescriptionId, doctorId: doctor.id },
+      include: { items: true, dispensedRecord: true, patient: true },
+    });
+
+    if (!existing) throw new ApiError(404, "Prescription not found");
+    if (existing.dispensedRecord || existing.status === "dispensed") {
+      throw new ApiError(409, "Dispensed prescriptions cannot be edited");
+    }
+
+    const editDeadline = new Date(existing.createdAt.getTime() + PRESCRIPTION_EDIT_WINDOW_MINUTES * 60 * 1000);
+    if (new Date() > editDeadline) {
+      throw new ApiError(403, `Prescription can be edited only within ${PRESCRIPTION_EDIT_WINDOW_MINUTES} minutes of creation`);
+    }
+
+    const prescription = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.prescriptionItem.deleteMany({ where: { prescriptionId: existing.id } });
+      const updated = await tx.prescription.update({
+        where: { id: existing.id },
+        data: {
+          disease: body.disease,
+          notes: body.notes,
+          followUpDate: body.followUpDate,
+          expiryDate: body.expiryDate || existing.expiryDate,
+          items: {
+            create: body.items.map((item) => ({
+              medicineId: item.medicineId,
+              medicineName: item.medicineName,
+              dosage: item.dosage,
+              frequency: item.frequency,
+              durationDays: item.durationDays,
+              timing: item.timing,
+              quantityToTake: item.quantityToTake,
+              instructions: item.instructions,
+            })),
+          },
+        },
+        include: { items: true, patient: { include: { user: true } } },
+      });
+
+      await tx.notification.create({
+        data: {
+          userId: existing.patient.userId,
+          title: "Prescription updated",
+          message: "Your prescription was updated by the doctor.",
+          type: "prescription",
+        },
+      });
+
+      return updated;
+    });
+
+    await audit({
+      userId: req.user!.id,
+      action: "UPDATE_PRESCRIPTION",
+      entityType: "prescription",
+      entityId: prescription.id,
+      ipAddress: req.ip,
+    });
+
+    res.json({ prescription, editWindowMinutes: PRESCRIPTION_EDIT_WINDOW_MINUTES });
   }),
 );
 
