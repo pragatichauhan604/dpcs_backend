@@ -29,6 +29,42 @@ catalogRoutes.get(
 );
 
 catalogRoutes.get(
+  "/pharmacies",
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const q = String(req.query.q || "").trim();
+    const city = String(req.query.city || "").trim();
+
+    const pharmacies = await prisma.pharmacy.findMany({
+      where: {
+        isActive: true,
+        isApproved: true,
+        city: city ? { contains: city } : undefined,
+        OR: q
+          ? [
+              { name: { contains: q } },
+              { ownerName: { contains: q } },
+              { address: { contains: q } },
+              { city: { contains: q } },
+              { pincode: { contains: q } },
+            ]
+          : undefined,
+      },
+      include: {
+        inventory: {
+          include: { medicine: true },
+          orderBy: { medicineName: "asc" },
+          take: 5,
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    res.json({ pharmacies });
+  }),
+);
+
+catalogRoutes.get(
   "/availability",
   authenticate,
   asyncHandler(async (req, res) => {

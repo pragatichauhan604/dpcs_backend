@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { authenticate } from "../middleware/auth";
 import { ApiError } from "../middleware/error";
 import { asyncHandler } from "../utils/asyncHandler";
+import { isMailConfigured, sendPasswordResetOtpEmail } from "../utils/mailer";
 import {
   adminRegistrationSchema,
   doctorRegistrationSchema,
@@ -206,9 +207,13 @@ authRoutes.post(
       },
     });
 
+    const emailSent = await sendPasswordResetOtpEmail(user.email, otp);
+
     res.json({
-      message: "Password reset OTP generated.",
-      devOtp: process.env.NODE_ENV === "production" ? undefined : otp,
+      message: emailSent
+        ? "Password reset OTP sent to your email."
+        : "SMTP email is not configured or could not be reached. Password reset OTP generated for testing.",
+      devOtp: emailSent ? undefined : otp,
     });
   }),
 );
